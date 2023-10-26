@@ -1,0 +1,23 @@
+name: Bump formulae
+description: Bump (update) Homebrew outdated formulae
+author: dawidd6
+branding:
+  icon: arrow-up-circle
+  color: yellow
+inputs:
+    directory:
+      description: ""
+      required: true
+    files:
+      description: ""
+      required: true
+runs:
+  using: composite
+  steps: 
+    - name: test
+      env:
+        FILES: ${inputs.files} 
+      shell: sh
+      run: for f in $FILES; do [YOUR COMMAND HERE]; done
+    
+      
