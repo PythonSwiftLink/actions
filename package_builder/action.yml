@@ -1,23 +1,98 @@
-name: Bump formulae
-description: Bump (update) Homebrew outdated formulae
-author: dawidd6
+name: Build Recipe
+description: Build custom recipe with toolchain and make it as package
+author: PythonSwiftLink
 branding:
   icon: arrow-up-circle
   color: yellow
 inputs:
-    directory:
+    recipe:
       description: ""
       required: true
-    files:
+    path:
       description: ""
       required: true
 runs:
   using: composite
   steps: 
-    - name: test
-      env:
-        FILES: ${inputs.files} 
-      shell: sh
-      run: for f in $FILES; do [YOUR COMMAND HERE]; done
     
+    - uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '15.0'
+        
+    - uses: actions/checkout@v4
+      
+    - name: setup python
+      uses: actions/setup-python@v4
+        with:
+          python-version: '3.11' # install the python version needed
+      
+    - name: brew installs
+      run: |
+        brew tap PythonSwiftLink/tools
+        brew install swiftpackagegen
+        
+    - name: install kivy-ios
+      run: |
+          python3 -m pip install --upgrade pip
+          
+          #pip3 install https://github.com/kivy/kivy-ios/archive/master.zip
+          git clone https://github.com/kivy/kivy-ios
+          
+          # new kivy recipe patches before building it.
+          
+          # curl -O https://github.com/kivy/kivy/archive/2.2.1.zip
+          # or
+          git clone --depth 1 -b 2.2.1 https://github.com/kivy/kivy
+          
+          ##### open cv fix #####
+          
+          cp package_templates/camera_avfoundation_implem.m kivy/kivy/core/camera/camera_avfoundation_implem.m
+          ls kivy-ios/kivy_ios/recipes
+          ##### apply modified kivy to recipe as "src" #####
+          mv kivy kivy-ios/kivy_ios/recipes/kivy/src
+          
+          cp -r ${inputs.path} kivy-ios/kivy_ios/recipes/
+
+
+      - name: modify kivy recipe
+        shell: python
+        run: |
+          init_path = "kivy-ios/kivy_ios/recipes/kivy/__init__.py"
+          with open(init_path, "r") as input_file:
+            init = input_file.read()
+            init = init.replace("url = \"https://github.com/kivy/kivy/archive/{version}.zip\"", "url = \"src\"")
+            print(init)
+            with open(init_path, "w") as output_file:
+              output_file.write(init)
+      
+      - name: install modified kivy-ios
+        run: |
+          pip3 install -e kivy-ios
+    
+      - name: build hostpython3
+        run: toolchain build hostpython3
+
+      - name: build python3
+        run: toolchain build python3
+
+      - name: build custom recipe
+        run: toolchain build ${inputs.recipe}
+
+      - name: repack custom recipe site-packages
+        env:
+          RECIPE: ${inputs.recipe}
+        run: |
+          PY_LIB=dist/root/python3/lib
+          
+          mkdir -p output/${RECIPE}
+
+          IOS_LIBS=dist_lib/iphoneos
+          SIM_LIBS=dist_lib/iphonesimulator
+
+          mkdir -p ${RECIPE}/$IOS_LIBS
+          mv -f $IOS_LIBS/lib.a numpy/$IOS_LIBS/
+
+          mkdir -p ${RECIPE}/$SIM_LIBS
+
+      
       
